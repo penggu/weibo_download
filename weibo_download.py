@@ -22,13 +22,13 @@ def global_const():
         'LOGIN': {
             'USERNAME': 'abc@xyz.com',
             'PASSWORD': '123456'
-        }
+        },
         'DOWNLOAD_DIR': u'/home/USER/Downloads',
         'DOWNLOAD_THREAD': 15,
         'PROGRESS_REPORT_INTERVAL': 20,
         'DOWNLOAD_TIME_OUT': 60 * 15,
         'SOCKET_TIMEOUT': 60,
-        'PATH_NAME_SEPARATOR': '/',
+        'PATH_NAME_SEPARATOR': '/'
     }
 
 def printd(msg, level='DEBUG'):
@@ -130,7 +130,7 @@ def chrome_download(url, default_file_path, target_file_path):
     my_thread_id = download_in_progress
     trace_enter()
     printd(u'Default download directory: {0}'.format(global_const()['DOWNLOAD_DIR']), 'DEBUG')
-    chromedriver = '/home/peng/bin/chromedriver'
+    chromedriver = '/home/USER/bin/chromedriver'
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_experimental_option('prefs', {'download.default_directory': global_const()['DOWNLOAD_DIR'] })
     chrome_options.add_experimental_option( "prefs", {'profile.default_content_settings.images': 2}) # Disable image
