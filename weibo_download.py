@@ -337,8 +337,8 @@ def download_folder(web_root, doc_id, save_dir):
         else: # download file, if not already exists
             file_name = u'{0}'.format(item['title'])
             file_path = u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'], file_name)
-            if not os.path.exists(make_os_path(file_path)):
-                download_file(web_root, item['id'], save_dir, file_name)
+            # if not os.path.exists(make_os_path(file_path)):
+            download_file(web_root, item['id'], save_dir, file_name)
     trace_exit()
 
 def main():
@@ -346,15 +346,30 @@ def main():
     save_dir = u'/media/USER/D500GB1/ebook'
     web_root = 'http://vdisk.weibo.com/s/'
     root_doc_id = 'Cb1ItMmDIM8dQ'
+    work_queue_file = '../work_queue'
 
-    download_folder(web_root, root_doc_id, save_dir)
+    # Build work queue and save to file
+    if not os.path.exists(work_queue_file):
+        printd(u'Work queue file: {0} not found'.format(work_queue_file), 'INFO')
+        download_folder(web_root, root_doc_id, save_dir)
+        with io.open(work_queue_file, 'w') as json_file:
+            data = json.dumps(work_queue, ensure_ascii=False)
+            # unicode(data) auto-decodes data to unicode if str
+            json_file.write(unicode(data))
+        return
+
+    # Load work queue from disk file
+    with io.open(work_queue_file, 'r') as json_file:
+        data = json_file.read()
+        work_queue = json.loads(data)
+
+    # Process work queue
+    printd(u'Total number of files to download = {0}'.format(len(work_queue)), 'INFO')
+    printd(u'Top 10 are listed below', 'INFO')
+
     for item in work_queue[:10]:
         json_str = json.dumps(item, ensure_ascii=False)
         printd(json_str, 'INFO')
-    with io.open('../work_queue', 'w') as json_file:
-        data = json.dumps(work_queue, ensure_ascii=False)
-        # unicode(data) auto-decodes data to unicode if str
-        json_file.write(unicode(data))
 
 if __name__ == '__main__':
     main()
