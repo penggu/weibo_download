@@ -14,7 +14,10 @@ import os # File path, etc
 import threading # Multi-threading support
 import random
 import inspect # for retrieve current function name
+import io
+import json
 
+work_queue = []
 download_in_progress = 0
 
 def global_const():
@@ -263,8 +266,18 @@ def download_file_2(web_root, doc_id, save_dir, fname):
 def download_file(web_root, doc_id, save_dir, file_name):
     file_path = u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'], file_name)
     # printd(u'Downloading file {0} as {1}'.format(doc_id, make_os_path(file_path)), 'DEBUG')
-    download_file_2(web_root, doc_id, save_dir, file_name) # Note: asynchronous
+    # download_file_2(web_root, doc_id, save_dir, file_name) # Note: asynchronous
     # printd(u'Download launched: {0}'.format(file_path), 'DEBUG')
+
+    # Instead of downloading the file, we simply put it in our work queue
+    global work_queue
+    work_queue.append({
+        'web_root': web_root,
+        'doc_id': doc_id,
+        'save_dir': save_dir,
+        'file_name': file_name
+    })
+
 
 def print_item(item):
     printd(u'ID: {0}, IsFolder: {1}, Url: {2}, Title: {3}'.format(
@@ -329,10 +342,19 @@ def download_folder(web_root, doc_id, save_dir):
     trace_exit()
 
 def main():
+    global work_queue
     save_dir = u'/media/USER/D500GB1/ebook'
     web_root = 'http://vdisk.weibo.com/s/'
     root_doc_id = 'Cb1ItMmDIM8dQ'
+
     download_folder(web_root, root_doc_id, save_dir)
+    for item in work_queue[:10]:
+        json_str = json.dumps(item, ensure_ascii=False)
+        printd(json_str, 'INFO')
+    with io.open('../work_queue', 'w') as json_file:
+        data = json.dumps(work_queue, ensure_ascii=False)
+        # unicode(data) auto-decodes data to unicode if str
+        json_file.write(unicode(data))
 
 if __name__ == '__main__':
     main()
