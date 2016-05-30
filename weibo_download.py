@@ -175,8 +175,8 @@ def chrome_download(url, default_file_path, target_file_path):
         # printd(u'#5.2 Switch to the new tab', 'DEBUG')
         # for handle in browser.window_handles:
         #     browser.switch_to.window(handle)
-        # printd(u'#5.3 load "chrome://download/" page', 'DEBUG')
-        # browser.get("chrome://downloads/")
+        printd(u'#5.3 load "chrome://download/" page', 'DEBUG')
+        browser.get("chrome://downloads/")
         printd(u'#5.4 Wait for the sign of download complete', 'DEBUG')
         start = time.time()
         elapsed = time.time() - start
