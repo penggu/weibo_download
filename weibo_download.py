@@ -16,6 +16,7 @@ import random
 import inspect # for retrieve current function name
 import io
 import json
+from multiprocessing.dummy import Pool as ThreadPool
 
 work_queue = []
 download_in_progress = 0
@@ -281,7 +282,7 @@ def download_file(web_root, doc_id, save_dir, file_name):
 
 def print_item(item):
     printd(u'ID: {0}, IsFolder: {1}, Url: {2}, Title: {3}'.format(
-        item['id'], item['folder'], item['url'], item['title']), 'DEBUG')
+        item['id'], item['folder'], item['url'], item['title']), 'INFO')
 
 def build_download_list(html_doc):
     soup = Soup(html_doc, 'lxml')
@@ -341,7 +342,34 @@ def download_folder(web_root, doc_id, save_dir):
             download_file(web_root, item['id'], save_dir, file_name)
     trace_exit()
 
-def main():
+def print_work_item(item):
+    json_str = json.dumps(item, ensure_ascii=False)
+    printd(json_str, 'INFO')
+
+def download_file_3(web_root, doc_id, save_dir, fname):
+    trace_enter()
+    default_file_path = make_os_path(u'{0}{1}{2}'.format(global_const()['DOWNLOAD_DIR'], global_const()['PATH_NAME_SEPARATOR'], fname))
+    target_file_path = make_os_path(u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'],fname))
+    if os.path.exists(target_file_path):
+        trace_abort(u'Target file exists: {0}'.format(target_file_path), 'INFO')
+        return
+    if os.path.exists(default_file_path):
+        trace_abort(u'File already downloaded. Executing "mv {0} {1}"'.format(default_file_path, target_file_path), 'INFO')
+        move_file(default_file_path, target_file_path)
+        return
+    url = web_root + doc_id
+    printd(u'Downloading {0} ...'.format(target_file_path), 'INFO')
+    time.sleep(random.randint(1, global_const()['PROGRESS_REPORT_INTERVAL']))
+    chrome_download(url, default_file_path, target_file_path)
+    trace_exit()
+
+def download_one_file(work_item):
+    #print_work_item(work_item)
+    i = work_item
+    web_root, doc_id, save_dir, file_name = i['web_root'], i['doc_id'], i['save_dir'], i['file_name']
+    download_file_3(web_root, doc_id, save_dir, file_name)
+
+def download_in_parallel():
     global work_queue
     save_dir = u'/media/USER/D500GB1/ebook'
     web_root = 'http://vdisk.weibo.com/s/'
@@ -356,7 +384,6 @@ def main():
             data = json.dumps(work_queue, ensure_ascii=False)
             # unicode(data) auto-decodes data to unicode if str
             json_file.write(unicode(data))
-        return
 
     # Load work queue from disk file
     with io.open(work_queue_file, 'r') as json_file:
@@ -364,12 +391,23 @@ def main():
         work_queue = json.loads(data)
 
     # Process work queue
-    printd(u'Total number of files to download = {0}'.format(len(work_queue)), 'INFO')
-    printd(u'Top 10 are listed below', 'INFO')
+    # printd(u'Total number of files to download = {0}'.format(len(work_queue)), 'INFO')
+    # printd(u'Top 10 are listed below', 'INFO')
+    # for item in work_queue[:10]:
+    #     json_str = json.dumps(item, ensure_ascii=False)
+    #     printd(json_str, 'INFO')
 
-    for item in work_queue[:10]:
-        json_str = json.dumps(item, ensure_ascii=False)
-        printd(json_str, 'INFO')
+    # Make the Pool of workers
+    pool = ThreadPool(global_const()['DOWNLOAD_THREAD'])
+    # Download one file in its own thread and return the results
+    results = pool.map(download_one_file, work_queue)
+    #close the pool and wait for the work to finish
+    pool.close()
+    pool.join()
+
+def main():
+    download_in_parallel()
 
 if __name__ == '__main__':
     main()
+
