@@ -267,10 +267,11 @@ def download_file_2(web_root, doc_id, save_dir, fname):
 
 def download_file(web_root, doc_id, save_dir, file_name):
     file_path = u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'], file_name)
-    # printd(u'Downloading file {0} as {1}'.format(doc_id, make_os_path(file_path)), 'DEBUG')
-    # download_file_2(web_root, doc_id, save_dir, file_name) # Note: asynchronous
-    # printd(u'Download launched: {0}'.format(file_path), 'DEBUG')
+    printd(u'Downloading file {0} as {1}'.format(doc_id, make_os_path(file_path)), 'DEBUG')
+    download_file_2(web_root, doc_id, save_dir, file_name) # Note: asynchronous
+    printd(u'Download launched: {0}'.format(file_path), 'DEBUG')
 
+def add_to_work_queue(web_root, doc_id, save_dir, file_name):
     # Instead of downloading the file, we simply put it in our work queue
     global work_queue
     work_queue.append({
@@ -338,9 +339,11 @@ def download_folder(web_root, doc_id, save_dir):
             download_folder(web_root, item['id'], u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'], item['title']))
         else: # download file, if not already exists
             file_name = u'{0}'.format(item['title'])
-            file_path = u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'], file_name)
-            # if not os.path.exists(make_os_path(file_path)):
-            download_file(web_root, item['id'], save_dir, file_name)
+            # Two choices, both are OK:
+            # Choice #1: Start downloading directly (async)
+            # download_file(web_root, item['id'], save_dir, file_name)
+            # Choice #2: Add to work queue and download later with ThreadPool
+            add_to_work_queue(web_root, item['id'], save_dir, file_name)
     trace_exit()
 
 def print_work_item(item):
