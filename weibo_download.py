@@ -20,6 +20,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 work_queue = []
 download_in_progress = 0
+pending_download = True
 
 def global_const():
     return {
@@ -28,7 +29,7 @@ def global_const():
             'PASSWORD': '123456'
         },
         'DOWNLOAD_DIR': u'/home/USER/Downloads',
-        'DOWNLOAD_THREAD': 15,
+        'DOWNLOAD_THREAD': 8,
         'PROGRESS_REPORT_INTERVAL': 20,
         'DOWNLOAD_TIME_OUT': 60 * 15,
         'SOCKET_TIMEOUT': 60,
@@ -36,8 +37,8 @@ def global_const():
     }
 
 def printd(msg, level='DEBUG'):
-    # allowed = ['CRIT', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']
-    allowed = ['CRIT', 'ERROR', 'WARN', 'INFO']
+    allowed = ['CRIT', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']
+    # allowed = ['CRIT', 'ERROR', 'WARN', 'INFO']
     if level in allowed:
         mapping = {
             'CRIT': u'严重',
@@ -346,21 +347,33 @@ def print_work_item(item):
     json_str = json.dumps(item, ensure_ascii=False)
     printd(json_str, 'INFO')
 
-def download_file_3(web_root, doc_id, save_dir, fname):
+def is_download_filtered(save_dir, file_name):
+    try:
+        default_file_path = make_os_path(u'{0}{1}{2}'.format(global_const()['DOWNLOAD_DIR'], global_const()['PATH_NAME_SEPARATOR'], file_name))
+        target_file_path = make_os_path(u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'],file_name))
+        if os.path.exists(target_file_path):
+            printd(u'Target file exists: {0}'.format(target_file_path), 'INFO')
+            return True
+        if os.path.exists(default_file_path):
+            printd(u'File already downloaded. Executing "mv {0} {1}"'.format(default_file_path, target_file_path), 'INFO')
+            move_file(default_file_path, target_file_path)
+            return True
+    except e:
+        printd(u'Failed to determine if file should be filtered. Try downloading anyway: {0}. {1}'.format(target_file_path, e), 'WARN')
+        pass
+    return False
+
+def download_file_3(web_root, doc_id, save_dir, file_name):
     trace_enter()
-    default_file_path = make_os_path(u'{0}{1}{2}'.format(global_const()['DOWNLOAD_DIR'], global_const()['PATH_NAME_SEPARATOR'], fname))
-    target_file_path = make_os_path(u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'],fname))
-    if os.path.exists(target_file_path):
-        trace_abort(u'Target file exists: {0}'.format(target_file_path), 'INFO')
-        return
-    if os.path.exists(default_file_path):
-        trace_abort(u'File already downloaded. Executing "mv {0} {1}"'.format(default_file_path, target_file_path), 'INFO')
-        move_file(default_file_path, target_file_path)
-        return
-    url = web_root + doc_id
-    printd(u'Downloading {0} ...'.format(target_file_path), 'INFO')
-    time.sleep(random.randint(1, global_const()['PROGRESS_REPORT_INTERVAL']))
-    chrome_download(url, default_file_path, target_file_path)
+    global pending_download
+    if not is_download_filtered(save_dir, file_name):
+        pending_download = True
+        url = web_root + doc_id
+        default_file_path = make_os_path(u'{0}{1}{2}'.format(global_const()['DOWNLOAD_DIR'], global_const()['PATH_NAME_SEPARATOR'], file_name))
+        target_file_path = make_os_path(u'{0}{1}{2}'.format(save_dir, global_const()['PATH_NAME_SEPARATOR'],file_name))
+        printd(u'Downloading {0} ...'.format(target_file_path), 'INFO')
+        time.sleep(random.randint(1, global_const()['PROGRESS_REPORT_INTERVAL']))
+        chrome_download(url, default_file_path, target_file_path)
     trace_exit()
 
 def download_one_file(work_item):
@@ -369,12 +382,14 @@ def download_one_file(work_item):
     web_root, doc_id, save_dir, file_name = i['web_root'], i['doc_id'], i['save_dir'], i['file_name']
     download_file_3(web_root, doc_id, save_dir, file_name)
 
-def download_in_parallel():
+def populate_work_queue():
     global work_queue
     save_dir = u'/media/USER/D500GB1/ebook'
     web_root = 'http://vdisk.weibo.com/s/'
-    root_doc_id = 'Cb1ItMmDIM8dQ'
-    work_queue_file = '../work_queue'
+    # root_doc_id = 'Cb1ItMmDIM8dQ'
+    # root_doc_id = 'FaZ_rZnf-TD5Q'
+    root_doc_id = 'C3AWjT1HpWs1K'
+    work_queue_file = root_doc_id + '.wkq'
 
     # Build work queue and save to file
     if not os.path.exists(work_queue_file):
@@ -390,22 +405,21 @@ def download_in_parallel():
         data = json_file.read()
         work_queue = json.loads(data)
 
-    # Process work queue
-    # printd(u'Total number of files to download = {0}'.format(len(work_queue)), 'INFO')
-    # printd(u'Top 10 are listed below', 'INFO')
-    # for item in work_queue[:10]:
-    #     json_str = json.dumps(item, ensure_ascii=False)
-    #     printd(json_str, 'INFO')
-
-    # Make the Pool of workers
-    pool = ThreadPool(global_const()['DOWNLOAD_THREAD'])
-    # Download one file in its own thread and return the results
-    results = pool.map(download_one_file, work_queue)
-    #close the pool and wait for the work to finish
-    pool.close()
-    pool.join()
+def download_in_parallel():
+    global work_queue
+    global pending_download
+    while pending_download: # Retry on download failures
+        pending_download = False
+        # Make the Pool of workers
+        pool = ThreadPool(global_const()['DOWNLOAD_THREAD'])
+        # Download one file in its own thread and return the results
+        results = pool.map(download_one_file, work_queue)
+        #close the pool and wait for the work to finish
+        pool.close()
+        pool.join()
 
 def main():
+    populate_work_queue()
     download_in_parallel()
 
 if __name__ == '__main__':
